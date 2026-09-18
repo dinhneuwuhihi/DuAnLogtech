@@ -26,6 +26,9 @@ NHỮNG THỨ ĐÃ SỬA SO VỚI BẢN CŨ:
 """
 
 from __future__ import annotations
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 import csv
 import sys
@@ -61,6 +64,42 @@ DEBOUNCE_K, DEBOUNCE_N = 3, 5   # cần 3/5 mẫu dương mới báo động
 CLEAR_MARGIN = 0.7              # ngưỡng nhả = 0.7 * ngưỡng báo (hysteresis)
 CLEAR_SAMPLES = 5               # cần 5 mẫu liên tiếp "sạch" mới tắt báo động
 DEVICE_TIMEOUT_S = 15.0         # quá lâu không thấy mẫu -> coi là offline
+
+# ---- CẤU HÌNH EMAIL CẢNH BÁO ----
+EMAIL_SENDER = "toladinhne@gmail.com"  # Sửa thành email gửi
+EMAIL_PASSWORD = "lzfc glif ijse ydzh"  # Sửa thành Mật khẩu ứng dụng (16 ký tự)
+EMAIL_RECEIVER = "toladinhne@gmail.com"  # Sửa thành email nhận cảnh báo
+
+
+def send_alert_email(device_id, temp, gas, reason):
+    """Hàm gửi email chạy trong luồng nền (background thread)"""
+    msg = MIMEMultipart()
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_RECEIVER
+    msg['Subject'] = f"🚨 CẢNH BÁO CHÁY/KHÓI TỪ {device_id} 🚨"
+
+    body = f"""
+    HỆ THỐNG PHÁT HIỆN NGUY CƠ CHÁY/KHÓI!
+
+    - Thiết bị: {device_id}
+    - Lý do kích hoạt: {reason}
+    - Nhiệt độ hiện tại: {temp:.1f} °C
+    - Nồng độ Gas hiện tại: {gas}
+    - Thời gian: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+    Vui lòng kiểm tra hiện trường ngay lập tức!
+    """
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        print(f"📧 Đã gửi email cảnh báo thành công tới {EMAIL_RECEIVER}")
+    except Exception as e:
+        print(f"📧 Lỗi khi gửi email: {e}")
 
 
 def load_bundle(path: str) -> Dict[str, Any]:
@@ -100,6 +139,7 @@ class DeviceState:
         self.last_seen: float = 0.0
         self.last_p_fire: float = 0.0
         self.last_reason: str = "-"
+        self.email_sent = False
 
     def decide(self, p_fire: float, hard_alarm: bool) -> Dict[str, Any]:
         """Kết hợp mô hình + luật cứng + chống rung."""
@@ -182,6 +222,22 @@ class InferenceEngine:
             self.total_requests += 1
             if decision["alarm"]:
                 self.total_alarms += 1
+
+            # Nếu có báo động VÀ chưa gửi email cho sự cố này
+            if decision["alarm"] and not state.email_sent:
+                print(f"Bắt đầu gửi email cảnh báo...")
+                # Tạo Thread riêng để gửi email (tránh làm kẹt server chờ 2-3s)
+                threading.Thread(
+                    target=send_alert_email,
+                    args=(device_id, reading["temp"], reading["gas"], decision["reason"])
+                ).start()
+                state.email_sent = True  # Đánh dấu đã gửi để không spam mail mỗi giây
+
+            # Nếu hệ thống đã an toàn trở lại (được reset), mở khóa cờ email
+            elif not decision["alarm"]:
+                state.email_sent = False
+
+                self._append_log(device_id, feats, p_fire, decision)
 
             self._append_log(device_id, feats, p_fire, decision)
 
