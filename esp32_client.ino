@@ -1,6 +1,13 @@
 /*
   ESP32 CLIENT - Hệ thống phát hiện cháy/khói
   ---------------------------------------------
+  Đọc DHT11 + quang trở + LM393 + MQ-2, gửi JSON lên server (Flask), nhận
+  quyết định báo động và điều khiển OLED/LED RGB/Buzzer/Relay.
+
+  Chưa làm (có thể bổ sung sau):
+   - ArduinoOTA, esp_task_wdt tường minh, NTP time, ghi buffer ra flash khi
+     mất mạng để không mất dữ liệu training.
+
   Thư viện cần cài (Library Manager):
    - DHT sensor library (Adafruit) + Adafruit Unified Sensor
    - Adafruit SSD1306 + Adafruit GFX Library
@@ -121,6 +128,30 @@ const unsigned long BLINK_INTERVAL_MS = 400;
 
 // ====================================================================
 
+
+// ====================================================================
+// ADC: LẤY TRUNG VỊ ĐỂ GIẢM NHIỄU
+// ====================================================================
+
+int readAnalogMedian(int pin, uint8_t samples = 9) {
+  int vals[9];
+  for (uint8_t i = 0; i < samples; i++) {
+    vals[i] = analogRead(pin);
+    delayMicroseconds(200);
+  }
+  // insertion sort - đủ nhanh với mảng nhỏ (9 phần tử)
+  for (uint8_t i = 1; i < samples; i++) {
+    int key = vals[i];
+    int j = i;
+    while (j > 0 && vals[j - 1] > key) {
+      vals[j] = vals[j - 1];
+      j--;
+    }
+    vals[j] = key;
+  }
+  return vals[samples / 2];
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -132,14 +163,10 @@ void setup() {
   digitalWrite(RELAY2_PIN, RELAY_OFF);
 
   // LEDC cho LED RGB + buzzer (thay analogWrite - không có trên core 2.x)
-  ledcSetup(CH_LED_R, LEDC_FREQ_RGB, LEDC_RES_BITS);
-  ledcAttachPin(LED_R_PIN, CH_LED_R);
-  ledcSetup(CH_LED_G, LEDC_FREQ_RGB, LEDC_RES_BITS);
-  ledcAttachPin(LED_G_PIN, CH_LED_G);
-  ledcSetup(CH_LED_B, LEDC_FREQ_RGB, LEDC_RES_BITS);
-  ledcAttachPin(LED_B_PIN, CH_LED_B);
-  ledcSetup(CH_BUZZER, BUZZER_TONE_HZ, LEDC_RES_BITS);
-  ledcAttachPin(BUZZER_PIN, CH_BUZZER);
+  ledcAttach(LED_R_PIN, LEDC_FREQ_RGB, LEDC_RES_BITS);
+  ledcAttach(LED_G_PIN, LEDC_FREQ_RGB, LEDC_RES_BITS);
+  ledcAttach(LED_B_PIN, LEDC_FREQ_RGB, LEDC_RES_BITS);
+  ledcAttach(BUZZER_PIN, BUZZER_TONE_HZ, LEDC_RES_BITS);
   buzzerOff();
   setRGB(0, 0, 0);
 
@@ -382,28 +409,7 @@ float getTempRise5s(float currentTemp, unsigned long now) {
   return currentTemp - oldestInWindow;
 }
 
-// ====================================================================
-// ADC: LẤY TRUNG VỊ ĐỂ GIẢM NHIỄU
-// ====================================================================
 
-int readAnalogMedian(int pin, uint8_t samples = 9) {
-  int vals[9];
-  for (uint8_t i = 0; i < samples; i++) {
-    vals[i] = analogRead(pin);
-    delayMicroseconds(200);
-  }
-  // insertion sort - đủ nhanh với mảng nhỏ (9 phần tử)
-  for (uint8_t i = 1; i < samples; i++) {
-    int key = vals[i];
-    int j = i;
-    while (j > 0 && vals[j - 1] > key) {
-      vals[j] = vals[j - 1];
-      j--;
-    }
-    vals[j] = key;
-  }
-  return vals[samples / 2];
-}
 
 // ====================================================================
 // HIỂN THỊ + ĐẦU RA (LED/BUZZER/RELAY) - KHÔNG DÙNG delay()
@@ -464,13 +470,13 @@ void serviceAlarmOutputs() {
 }
 
 void setRGB(uint8_t r, uint8_t g, uint8_t b) {
-  ledcWrite(CH_LED_R, r);
-  ledcWrite(CH_LED_G, g);
-  ledcWrite(CH_LED_B, b);
+  ledcWrite(LED_R_PIN, r);
+  ledcWrite(LED_G_PIN, g);
+  ledcWrite(LED_B_PIN, b);
 }
 
-void buzzerOn()  { ledcWriteTone(CH_BUZZER, BUZZER_TONE_HZ); }
-void buzzerOff() { ledcWriteTone(CH_BUZZER, 0); }
+void buzzerOn()  { ledcWriteTone(BUZZER_PIN, BUZZER_TONE_HZ); }
+void buzzerOff() { ledcWriteTone(BUZZER_PIN, 0); }
 
 void showMessage(const char* msg) {
   display.clearDisplay();

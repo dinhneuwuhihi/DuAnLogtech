@@ -2,6 +2,8 @@
 <project version="4">
   <component name="ArduinoSettingsState">
     <option name="arduinoCliPath" value="C:\Users\thanh\AppData\Local/Programs/Arduino IDE/resources/app/lib/backend/resources/arduino-cli.exe" />
+    <option name="comPort" value="COM3" />
+    <option name="serialPort" value="COM3" />
     <option name="activeBackend" value="arduino-cli" />
   </component>
 </project>

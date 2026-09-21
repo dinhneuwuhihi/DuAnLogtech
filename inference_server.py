@@ -54,12 +54,12 @@ LOG_FILE = "inference_log.csv"
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 5000
 
-# ---- Luật ngưỡng cứng: sống còn, không phụ thuộc AI ----
+# ---- Luật fail-safe: ngưỡng cố định, không phụ thuộc AI ----
 GAS_HARD_LIMIT = 2500      # ADC MQ-2: khói rất đậm đặc
 TEMP_HARD_LIMIT = 60.0     # độ C
 TEMP_RISE_HARD_LIMIT = 5.0 # độ C tăng trong 5 giây
 
-# ---- Chống rung quyết định ----
+
 DEBOUNCE_K, DEBOUNCE_N = 3, 5   # cần 3/5 mẫu dương mới báo động
 CLEAR_MARGIN = 0.7              # ngưỡng nhả = 0.7 * ngưỡng báo (hysteresis)
 CLEAR_SAMPLES = 5               # cần 5 mẫu liên tiếp "sạch" mới tắt báo động
@@ -352,7 +352,6 @@ def run() -> None:
     print(f"Log suy luan: {Path(LOG_FILE).resolve()}")
     print("=" * 70)
     try:
-        # Flask dev server không dành cho chạy lâu dài; waitress ổn định trên Windows.
         from waitress import serve
         print(f"Chay bang waitress tai http://{SERVER_HOST}:{SERVER_PORT}")
         serve(app, host=SERVER_HOST, port=SERVER_PORT, threads=8)

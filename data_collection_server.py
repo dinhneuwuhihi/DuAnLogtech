@@ -1,13 +1,8 @@
 """
 BƯỚC 2 - Server thu thập dữ liệu (Data Collection)
 ----------------------------------------------------
-Chạy file này trên MÁY TÍNH của bạn (đóng vai trò Server).
-ESP32 gửi dữ liệu cảm biến đến đây, server ghi vào sensor_data.csv kèm nhãn.
-
 Cách dùng:
-1. Cài thư viện:  pip install -r requirements.txt
-2. Chạy:          python data_collection_server.py
-3. TRƯỚC MỖI LẦN thu thập, mở 1 "session" (phiên) mới:
+1. TRƯỚC MỖI LẦN thu thập, mở 1 "session" (phiên) mới:
        http://<IP_MAY_TINH>:5000/start_session/phong_khach_binh_thuong
    Sau đó đặt nhãn cho phiên:
        http://<IP_MAY_TINH>:5000/set_label/0   -> bình thường
@@ -16,20 +11,10 @@ Cách dùng:
        http://<IP_MAY_TINH>:5000/set_label/3   -> nóng nhưng không khói (máy sấy)
        http://<IP_MAY_TINH>:5000/set_label/4   -> thay đổi ánh sáng mạnh
        http://<IP_MAY_TINH>:5000/set_label/5   -> khói thuốc / nhiễu khác
+       http://<IP_MAY_TINH>:5000/set_label/6  -> độ ẩm ngưng tụ
    Xem danh sách nhãn: http://<IP_MAY_TINH>:5000/labels
-4. Theo dõi tiến độ: http://<IP_MAY_TINH>:5000/stats
+2. Theo dõi tiến độ: http://<IP_MAY_TINH>:5000/stats
 
-VÌ SAO CẦN "SESSION"?
-  - Dữ liệu là chuỗi thời gian 1Hz: 2 dòng liền nhau gần như giống nhau.
-    Nếu chia train/test ngẫu nhiên, mô hình sẽ "học thuộc" và cho accuracy
-    ảo ~0.99. train_model.py chia theo session để tránh rò rỉ dữ liệu.
-  - Đặc trưng tốc độ thay đổi (diff) không được tính vắt qua 2 phiên khác nhau.
-
-VÌ SAO CẦN CÁC NHÃN 2..5 (hard negatives)?
-  Hơi nước nồi lẩu, khói thuốc, hơi nóng máy sấy... chính là thứ gây báo
-  động giả. Thu thập và gắn nhãn riêng chúng thì mô hình mới học được
-  "nóng + khói thật" khác "chỉ hơi nước" ở đâu. Khi train, mọi nhãn khác 1
-  đều được gộp về 0.
 """
 
 import csv
@@ -183,7 +168,7 @@ def collect_data():
         print(f"!! Tu choi du lieu: {exc}")
         return jsonify({"error": str(exc)}), 400
 
-    # Phản hồi để ESP32 biết server còn sống. Chỉ báo nguy hiểm khi ta đang
+    # Phản hồi để ESP32 biết server còn chạy. Chỉ báo nguy hiểm khi ta đang
     # chủ động gắn nhãn cháy, các nhãn nhiễu (2..5) vẫn coi là an toàn.
     prediction = 1 if data_manager.current_label == FIRE_LABEL else 0
     return jsonify({
@@ -212,7 +197,7 @@ def set_label(label: int):
 
 @app.route("/start_session/<name>", methods=["GET", "POST"])
 def start_session(name: str):
-    """Mở phiên thu thập mới (bắt buộc cho việc chia train/test không rò rỉ)."""
+    """Mở phiên thu thập mới"""
     session = data_manager.start_session(name)
     return jsonify({"message": "Da mo session moi", "session": session})
 

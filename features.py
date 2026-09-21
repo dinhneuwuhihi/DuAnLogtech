@@ -37,6 +37,7 @@ LABEL_NAMES: Dict[int, str] = {
     3: "nong nhung khong khoi (may say, nang)",
     4: "thay doi anh sang manh",
     5: "khoi thuoc la / nhieu khac",
+    6: "am ngung tu (chenh lech nhiet do ngay/dem)",
 }
 FIRE_LABEL = 1
 VALID_LABELS = set(LABEL_NAMES)
@@ -220,11 +221,6 @@ def iter_session_features(
     rows: Iterable[Dict[str, Any]],
     ts_getter=lambda row: row["ts"],
 ) -> Iterator[Dict[str, float]]:
-    """Tính đặc trưng cho MỘT session (đã sắp xếp theo thời gian).
-
-    train_model.py dùng hàm này để tạo dữ liệu huấn luyện, nên dữ liệu train
-    và dữ liệu lúc chạy thật được sinh ra bởi CÙNG một đoạn code.
-    """
     extractor = FeatureExtractor()
     for row in rows:
         yield extractor.push(ts_getter(row), row)
